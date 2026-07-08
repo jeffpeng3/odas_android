@@ -1,36 +1,186 @@
-# For more information about using CMake with Android Studio, read the
-# documentation: https://d.android.com/studio/projects/add-native-code.html.
-# For more examples on how to use CMake, see https://github.com/android/ndk-samples.
-
-# Sets the minimum CMake version required for this project.
 cmake_minimum_required(VERSION 3.22.1)
-
-# Declares the project name. The project name can be accessed via ${ PROJECT_NAME},
-# Since this is the top level CMakeLists.txt, the project name is also accessible
-# with ${CMAKE_PROJECT_NAME} (both CMake variables are in-sync within the top level
-# build script scope).
 project("myapplication")
 
-# Creates and names a library, sets it as either STATIC
-# or SHARED, and provides the relative paths to its source code.
-# You can define multiple libraries, and CMake builds them for you.
-# Gradle automatically packages shared libraries with your APK.
-#
-# In this top level CMakeLists.txt, ${CMAKE_PROJECT_NAME} is used to define
-# the target library name; in the sub-module's CMakeLists.txt, ${PROJECT_NAME}
-# is preferred for the same purpose.
-#
-# In order to load a library into your app from Java/Kotlin, you must call
-# System.loadLibrary() and pass the name of the library defined here;
-# for GameActivity/NativeActivity derived applications, the same library name must be
-# used in the AndroidManifest.xml file.
-add_library(${CMAKE_PROJECT_NAME} SHARED
-        test.c)
+set(ODAS_SRC
+    odas/src/general/format.c
+    odas/src/general/interface.c
+    odas/src/general/link.c
+    odas/src/general/mic.c
+    odas/src/general/samplerate.c
+    odas/src/general/soundspeed.c
+    odas/src/general/spatialfilter.c
+    odas/src/general/thread.c
+    odas/src/init/combining.c
+    odas/src/init/delay.c
+    odas/src/init/directivity.c
+    odas/src/init/hit.c
+    odas/src/init/linking.c
+    odas/src/init/scanning.c
+    odas/src/init/space.c
+    odas/src/init/windowing.c
+    odas/src/signal/acorr.c
+    odas/src/signal/aimg.c
+    odas/src/signal/area.c
+    odas/src/signal/assignation.c
+    odas/src/signal/beampattern.c
+    odas/src/signal/category.c
+    odas/src/signal/coherence.c
+    odas/src/signal/delta.c
+    odas/src/signal/demixing.c
+    odas/src/signal/env.c
+    odas/src/signal/frame.c
+    odas/src/signal/freq.c
+    odas/src/signal/gain.c
+    odas/src/signal/hop.c
+    odas/src/signal/index.c
+    odas/src/signal/kalman.c
+    odas/src/signal/map.c
+    odas/src/signal/mask.c
+    odas/src/signal/mixture.c
+    odas/src/signal/pair.c
+    odas/src/signal/particle.c
+    odas/src/signal/pitch.c
+    odas/src/signal/point.c
+    odas/src/signal/postprob.c
+    odas/src/signal/pot.c
+    odas/src/signal/scan.c
+    odas/src/signal/spatialgain.c
+    odas/src/signal/spatialindex.c
+    odas/src/signal/spatialmask.c
+    odas/src/signal/steer.c
+    odas/src/signal/target.c
+    odas/src/signal/tau.c
+    odas/src/signal/tdoa.c
+    odas/src/signal/track.c
+    odas/src/signal/triangle.c
+    odas/src/signal/window.c
+    odas/src/signal/xcorr.c
+    odas/src/system/acorr2pitch.c
+    odas/src/system/demixing2env.c
+    odas/src/system/demixing2freq.c
+    odas/src/system/env2env.c
+    odas/src/system/hop2hop.c
+    odas/src/system/hop2frame.c
+    odas/src/system/frame2freq.c
+    odas/src/system/freq2acorr.c
+    odas/src/system/freq2env.c
+    odas/src/system/freq2freq.c
+    odas/src/system/freq2frame.c
+    odas/src/system/freq2xcorr.c
+    odas/src/system/frame2hop.c
+    odas/src/system/gain2mask.c
+    odas/src/system/kalman2coherence.c
+    odas/src/system/kalman2kalman.c
+    odas/src/system/mixture2mixture.c
+    odas/src/system/particle2coherence.c
+    odas/src/system/particle2particle.c
+    odas/src/system/pitch2category.c
+    odas/src/system/steer2demixing.c
+    odas/src/system/track2gain.c
+    odas/src/system/track2steer.c
+    odas/src/system/xcorr2aimg.c
+    odas/src/system/xcorr2xcorr.c
+    odas/src/utils/cmatrix.c
+    odas/src/utils/fft.c
+    odas/src/utils/fifo.c
+    odas/src/utils/gaussian.c
+    odas/src/utils/gaussjordan.c
+    odas/src/utils/inverse.c
+    odas/src/utils/matrix.c
+    odas/src/utils/pcm.c
+    odas/src/utils/pffft.c
+    odas/src/utils/random.c
+    odas/src/utils/transcendental.c
+    odas/src/aconnector/acon_categories.c
+    odas/src/aconnector/acon_hops.c
+    odas/src/aconnector/acon_pots.c
+    odas/src/aconnector/acon_powers.c
+    odas/src/aconnector/acon_spectra.c
+    odas/src/aconnector/acon_targets.c
+    odas/src/aconnector/acon_tracks.c
+    odas/src/ainjector/ainj_targets.c
+    odas/src/amessage/amsg_categories.c
+    odas/src/amessage/amsg_hops.c
+    odas/src/amessage/amsg_pots.c
+    odas/src/amessage/amsg_powers.c
+    odas/src/amessage/amsg_spectra.c
+    odas/src/amessage/amsg_targets.c
+    odas/src/amessage/amsg_tracks.c
+    odas/src/amodule/amod_classify.c
+    odas/src/amodule/amod_istft.c
+    odas/src/amodule/amod_mapping.c
+    odas/src/amodule/amod_noise.c
+    odas/src/amodule/amod_resample.c
+    odas/src/amodule/amod_ssl.c
+    odas/src/amodule/amod_sss.c
+    odas/src/amodule/amod_sst.c
+    odas/src/amodule/amod_stft.c
+    odas/src/amodule/amod_volume.c
+    odas/src/asink/asnk_categories.c
+    odas/src/asink/asnk_hops.c
+    odas/src/asink/asnk_pots.c
+    odas/src/asink/asnk_powers.c
+    odas/src/asink/asnk_spectra.c
+    odas/src/asink/asnk_tracks.c
+    odas/src/asource/asrc_hops.c
+    odas/src/connector/con_categories.c
+    odas/src/connector/con_hops.c
+    odas/src/connector/con_pots.c
+    odas/src/connector/con_powers.c
+    odas/src/connector/con_spectra.c
+    odas/src/connector/con_targets.c
+    odas/src/connector/con_tracks.c
+    odas/src/injector/inj_targets.c
+    odas/src/message/msg_categories.c
+    odas/src/message/msg_hops.c
+    odas/src/message/msg_pots.c
+    odas/src/message/msg_powers.c
+    odas/src/message/msg_spectra.c
+    odas/src/message/msg_targets.c
+    odas/src/message/msg_tracks.c
+    odas/src/module/mod_classify.c
+    odas/src/module/mod_istft.c
+    odas/src/module/mod_mapping.c
+    odas/src/module/mod_noise.c
+    odas/src/module/mod_resample.c
+    odas/src/module/mod_ssl.c
+    odas/src/module/mod_sss.c
+    odas/src/module/mod_sst.c
+    odas/src/module/mod_stft.c
+    odas/src/module/mod_volume.c
+    odas/src/sink/snk_categories.c
+    odas/src/sink/snk_hops.c
+    odas/src/sink/snk_pots.c
+    odas/src/sink/snk_powers.c
+    odas/src/sink/snk_spectra.c
+    odas/src/sink/snk_tracks.c
+    odas/src/source/src_hops.c
+)
 
-# Specifies libraries CMake should link to your target library. You
-# can link libraries from various origins, such as libraries defined in this
-# build script, prebuilt third-party libraries, or Android system libraries.
+add_library(odas_core STATIC ${ODAS_SRC})
+
+target_include_directories(odas_core PRIVATE
+    odas/include/odas
+)
+
+target_link_libraries(odas_core
+    log
+    m
+    android
+)
+
+add_library(${CMAKE_PROJECT_NAME} SHARED
+    odas_wrapper.cpp
+    odas_processor.cpp
+)
+
+target_include_directories(${CMAKE_PROJECT_NAME} PRIVATE
+    odas/include/odas
+)
+
 target_link_libraries(${CMAKE_PROJECT_NAME}
-        # List libraries link to the target library
-        android
-        log)
+    odas_core
+    android
+    log
+    m
+)

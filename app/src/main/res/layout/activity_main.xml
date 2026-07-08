@@ -4,16 +4,119 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="#1A1A2E"
     tools:context=".MainActivity">
 
     <TextView
-        android:id="@+id/sample_text"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Hello World!"
+        android:id="@+id/tvMicInfo"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
+        android:background="#0D1B2A"
+        android:padding="8dp"
+        android:textColor="#CCFFFFFF"
+        android:textSize="11sp"
+        android:typeface="monospace"
+        android:scrollbars="vertical"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/liveRmsPanel"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/liveRmsPanel"
+        android:layout_width="0dp"
+        android:layout_height="56dp"
+        android:background="#16213E"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="12dp"
+        app:layout_constraintBottom_toTopOf="@id/radarView"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@id/tvMicInfo">
+
+        <LinearLayout
+            android:id="@+id/panelCh0"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvCh0Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ch0"
+                android:textColor="#FF80AB"
+                android:textSize="10sp"
+                android:typeface="monospace" />
+
+            <View
+                android:id="@+id/barCh0"
+                android:layout_width="0dp"
+                android:layout_height="8dp"
+                android:layout_marginTop="2dp"
+                android:background="#FF80AB" />
+
+            <TextView
+                android:id="@+id/tvCh0Rms"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.0000"
+                android:textColor="#80FF80AB"
+                android:textSize="9sp"
+                android:typeface="monospace" />
+        </LinearLayout>
+
+        <View
+            android:layout_width="1dp"
+            android:layout_height="32dp"
+            android:layout_marginHorizontal="8dp"
+            android:background="#40FFFFFF" />
+
+        <LinearLayout
+            android:id="@+id/panelCh1"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center_vertical"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvCh1Label"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Ch1"
+                android:textColor="#80D8FF"
+                android:textSize="10sp"
+                android:typeface="monospace" />
+
+            <View
+                android:id="@+id/barCh1"
+                android:layout_width="0dp"
+                android:layout_height="8dp"
+                android:layout_marginTop="2dp"
+                android:background="#80D8FF" />
+
+            <TextView
+                android:id="@+id/tvCh1Rms"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="0.0000"
+                android:textColor="#8080D8FF"
+                android:textSize="9sp"
+                android:typeface="monospace" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <com.example.myapplication.RadarChartView
+        android:id="@+id/radarView"
+        android:layout_width="0dp"
+        android:layout_height="0dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toBottomOf="@id/liveRmsPanel" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
