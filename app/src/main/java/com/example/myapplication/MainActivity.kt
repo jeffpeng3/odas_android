@@ -29,10 +29,10 @@ class MainActivity : AppCompatActivity() {
     private var audioRecord: AudioRecord? = null
 
     companion object {
-        const val SAMPLE_RATE = 16000
-        const val HOP_SIZE = 128
+        const val SAMPLE_RATE = 48000
+        const val HOP_SIZE = 240
         const val N_CHANNELS = 2
-        const val MIC_SPACING = 0.08f
+        const val MIC_SPACING = 0.14f
         const val SOUND_SPEED = 343f
     }
 
@@ -126,62 +126,52 @@ class MainActivity : AppCompatActivity() {
         binding.tvCh1Rms.text = "%.4f".format(rms1)
     }
 
+    private var captureRate = SAMPLE_RATE
+
+    private fun tryCreateAR(source: Int, rate: Int, mask: Int): AudioRecord? {
+        return try {
+            val minBuf = AudioRecord.getMinBufferSize(rate, mask, AudioFormat.ENCODING_PCM_16BIT)
+            if (minBuf <= 0) return null
+            val ar = AudioRecord(source, rate, mask, AudioFormat.ENCODING_PCM_16BIT, minBuf * 4)
+            if (ar.state == AudioRecord.STATE_INITIALIZED) ar else { ar.release(); null }
+        } catch (_: Exception) { null }
+    }
+
     private fun startCapture() {
         val ok = odasEngine.initSSL(MIC_SPACING)
-        if (!ok) {
-            Log.e("ODAS_DEMO", "SSL init failed")
-            return
-        }
+        if (!ok) { Log.e("ODAS_DEMO", "SSL init failed"); return }
         Log.i("ODAS_DEMO", "SSL initialized, spacing=${MIC_SPACING}m")
 
-        // Try CAMCORDER stereo first
-        val channelMask = AudioFormat.CHANNEL_IN_STEREO
-        val minBuf = AudioRecord.getMinBufferSize(SAMPLE_RATE, channelMask, AudioFormat.ENCODING_PCM_16BIT)
-        if (minBuf == AudioRecord.ERROR || minBuf == AudioRecord.ERROR_BAD_VALUE) {
-            Log.w("ODAS_DEMO", "CAMCORDER stereo not supported, trying MONO")
+        var ar: AudioRecord? = null
+        var deviceLabel = "?"
+        var captureChannels = 2
+        captureRate = SAMPLE_RATE
+
+        // attempt 1: CAMCORDER at 48000 Hz (back-mic native rate)
+        ar = tryCreateAR(MediaRecorder.AudioSource.CAMCORDER, 48000, AudioFormat.CHANNEL_IN_STEREO)
+        if (ar != null) { deviceLabel = "CAMCORDER @48kHz"; captureRate = 48000 }
+        else {
+            // attempt 2: CAMCORDER at 16000 Hz
+            ar = tryCreateAR(MediaRecorder.AudioSource.CAMCORDER, SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO)
+            if (ar != null) deviceLabel = "CAMCORDER @16kHz"
+        }
+
+        if (ar == null) {
+            Log.w("ODAS_DEMO", "stereo failed, trying MONO")
             startCaptureMono()
             return
         }
 
-        try {
-            audioRecord = AudioRecord(
-                MediaRecorder.AudioSource.CAMCORDER,
-                SAMPLE_RATE,
-                channelMask,
-                AudioFormat.ENCODING_PCM_16BIT,
-                minBuf * 4
-            )
-        } catch (e: Exception) {
-            Log.e("ODAS_DEMO", "AudioRecord init failed: ${e.message}")
-            startCaptureMono()
-            return
-        }
-
-        val ar = audioRecord!!
-        if (ar.state != AudioRecord.STATE_INITIALIZED) {
-            Log.w("ODAS_DEMO", "AudioRecord not initialized, trying MONO")
-            ar.release()
-            startCaptureMono()
-            return
-        }
-
-        val captureChannels = ar.channelCount
-        Log.i("ODAS_DEMO", "AudioRecord OK: rate=${ar.sampleRate} ch=$captureChannels buf=$minBuf")
-        // Use AudioManager to show which input devices are available
-        val mgr = getSystemService(AUDIO_SERVICE) as AudioManager
-        val inputDevices = mgr.getDevices(AudioManager.GET_DEVICES_INPUTS)
-        for (d in inputDevices) {
-            Log.i("ODAS_DEMO", "Input device: id=${d.id} product='${d.productName}' type=${d.type} addr='${d.address}'")
-        }
+        audioRecord = ar
+        captureChannels = ar.channelCount
+        val actualRate = ar.sampleRate
+        Log.i("ODAS_DEMO", "AudioRecord OK: source=CAMCORDER rate=$actualRate ch=$captureChannels")
 
         binding.tvMicInfo.text = buildMicInfo() +
             "\n=== Live Capture ===" +
-            "\n    Status: ACTIVE (${captureChannels}ch)" +
-            "\n    Buffer: ${minBuf * 4} bytes"
+            "\n    Source: $deviceLabel" +
+            "\n    Actual rate: ${actualRate}Hz  ch: $captureChannels"
 
-        // Physical positions (HAL addr → actual location):
-        //   "bottom" → near camera lens
-        //   "back"   → near USB-C charging port
         val pos0 = if (builtInMics.size > 0) when (builtInMics[0].address) {
             "bottom" -> "camera"; "back" -> "usb-c"; else -> builtInMics[0].address
         } else "?"
@@ -192,36 +182,34 @@ class MainActivity : AppCompatActivity() {
         binding.tvCh1Label.text = "ch1 ($pos1)"
 
         ar.startRecording()
-        val shortBuf = ShortArray(HOP_SIZE * captureChannels)
-        val floatBuf = FloatArray(HOP_SIZE * captureChannels)
+
+        val odasHop = HOP_SIZE
+        val readLen = odasHop * captureChannels
+        val shortBuf = ShortArray(readLen)
+        val floatBuf = FloatArray(readLen)
 
         processJob = CoroutineScope(Dispatchers.Default).launch {
             var frameCount = 0
             var rms0 = 0f; var rms1 = 0f
             while (isActive) {
-                val read = ar.read(shortBuf, 0, shortBuf.size, AudioRecord.READ_BLOCKING)
-                if (read == shortBuf.size) {
-                    for (i in 0 until read) {
-                        floatBuf[i] = shortBuf[i].toFloat() / 32768f
-                    }
-                    // Per-channel RMS
+                val read = ar.read(shortBuf, 0, readLen, AudioRecord.READ_BLOCKING)
+                if (read == readLen) {
+                    for (i in 0 until odasHop * captureChannels) floatBuf[i] = shortBuf[i].toFloat() / 32768f
+
                     rms0 = 0f; rms1 = 0f
-                    for (i in 0 until HOP_SIZE) {
+                    for (i in 0 until odasHop) {
                         rms0 += floatBuf[i * 2] * floatBuf[i * 2]
                         rms1 += floatBuf[i * 2 + 1] * floatBuf[i * 2 + 1]
                     }
-                    rms0 = kotlin.math.sqrt(rms0 / HOP_SIZE)
-                    rms1 = kotlin.math.sqrt(rms1 / HOP_SIZE)
+                    rms0 = kotlin.math.sqrt(rms0 / odasHop)
+                    rms1 = kotlin.math.sqrt(rms1 / odasHop)
 
                     val results = odasEngine.processAudio(floatBuf, captureChannels)
-                    val directAz = results[0]
-                    val quality = results[1]
+                    val directAz = results[0]; val quality = results[1]
 
                     frameCount++
-                    // Update UI every 4 frames (~32ms) to avoid overloading main thread
                     if (frameCount % 4 == 0) {
-                        val finalAz = directAz
-                        val finalQ = quality
+                        val finalAz = directAz; val finalQ = quality
                         val fr0 = rms0; val fr1 = rms1
                         withContext(Dispatchers.Main) {
                             binding.radarView.updateSources(
@@ -231,11 +219,8 @@ class MainActivity : AppCompatActivity() {
                         }
                     }
                 } else if (read == AudioRecord.ERROR_INVALID_OPERATION) {
-                    Log.e("ODAS_DEMO", "AudioRecord invalid operation")
-                    break
-                } else {
-                    delay(1)
-                }
+                    Log.e("ODAS_DEMO", "AudioRecord invalid operation"); break
+                } else { delay(1) }
             }
         }
     }

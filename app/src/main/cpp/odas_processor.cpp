@@ -28,9 +28,9 @@ static msg_hops_obj * g_hop_msg = NULL;
 static msg_spectra_obj * g_spec_msg = NULL;
 static msg_pots_obj * g_pot_msg = NULL;
 
-static unsigned int g_hopSize = 128;
+static unsigned int g_hopSize = 240;
 static unsigned int g_nChannels = 2;
-static unsigned int g_nPots = 3;
+static unsigned int g_nPots = 1;
 static float g_micSpacing = 0.05f;
 
 static unsigned long long g_timestamp = 0;
@@ -49,16 +49,16 @@ Java_com_example_myapplication_OdasEngine_initSSL(JNIEnv *env, jobject thiz,
     msg_hops_cfg * hop_cfg = msg_hops_cfg_construct();
     hop_cfg->hopSize = g_hopSize;
     hop_cfg->nChannels = g_nChannels;
-    hop_cfg->fS = 16000;
+    hop_cfg->fS = 48000;
 
     msg_spectra_cfg * spec_cfg = msg_spectra_cfg_construct();
-    spec_cfg->halfFrameSize = 129;
+    spec_cfg->halfFrameSize = 257;
     spec_cfg->nChannels = g_nChannels;
-    spec_cfg->fS = 16000;
+    spec_cfg->fS = 48000;
 
     msg_pots_cfg * pot_cfg = msg_pots_cfg_construct();
     pot_cfg->nPots = g_nPots;
-    pot_cfg->fS = 16000;
+    pot_cfg->fS = 48000;
 
     mics_obj * mics = mics_construct_zero(2);
     mics->mu[0] = -halfSpacing; mics->mu[1] = 0.0f;  mics->mu[2] = 0.0f;
@@ -75,12 +75,12 @@ Java_com_example_myapplication_OdasEngine_initSSL(JNIEnv *env, jobject thiz,
     }
 
     samplerate_obj * samplerate = samplerate_construct_zero();
-    samplerate->mu = 16000;
-    samplerate->sigma2 = 0.0f;
+    samplerate->mu = 48000;
+    samplerate->sigma2 = 0.01f;
 
     soundspeed_obj * soundspeed = soundspeed_construct_zero();
     soundspeed->mu = 343.0f;
-    soundspeed->sigma2 = 0.0f;
+    soundspeed->sigma2 = 25.0f;
 
     spatialfilters_obj * spatialfilters = spatialfilters_construct_zero(1);
     spatialfilters->direction[0] = 0.0f;
@@ -99,15 +99,15 @@ Java_com_example_myapplication_OdasEngine_initSSL(JNIEnv *env, jobject thiz,
     ssl_cfg->nLevels = 2;
     ssl_cfg->levels = (unsigned int *)malloc(2 * sizeof(unsigned int));
     ssl_cfg->levels[0] = 2;
-    ssl_cfg->levels[1] = 3;
+    ssl_cfg->levels[1] = 4;
     ssl_cfg->deltas = (signed int *)malloc(2 * sizeof(signed int));
     ssl_cfg->deltas[0] = -1;
     ssl_cfg->deltas[1] = -1;
-    ssl_cfg->nMatches = 3;
+    ssl_cfg->nMatches = 1;
     ssl_cfg->probMin = 0.5f;
     ssl_cfg->nRefinedLevels = 1;
     ssl_cfg->nThetas = 181;
-    ssl_cfg->gainMin = 0.1f;
+    ssl_cfg->gainMin = 0.25f;
 
     mod_stft_cfg * stft_cfg = mod_stft_cfg_construct();
 
@@ -133,7 +133,7 @@ Java_com_example_myapplication_OdasEngine_initSSL(JNIEnv *env, jobject thiz,
     g_timestamp = 0;
     g_initialized = 1;
 
-    LOGI("SSL initialized (2 mics, 16kHz, hop=%d, spacing=%.1fcm)", g_hopSize, g_micSpacing * 100.0f);
+    LOGI("SSL initialized (2 mics, 48kHz, hop=%d, spacing=%.1fcm)", g_hopSize, g_micSpacing * 100.0f);
     return JNI_TRUE;
 }
 
@@ -159,7 +159,7 @@ Java_com_example_myapplication_OdasEngine_processAudio(JNIEnv *env, jobject thiz
     env->ReleaseFloatArrayElements(audioData, data, JNI_ABORT);
 
     g_hop_msg->timeStamp = ++g_timestamp;
-    g_hop_msg->fS = 16000;
+    g_hop_msg->fS = 48000;
 
     mod_stft_process(g_stft);
     mod_ssl_process(g_ssl);
@@ -169,9 +169,8 @@ Java_com_example_myapplication_OdasEngine_processAudio(JNIEnv *env, jobject thiz
     float *ch0 = g_hop_msg->hops->array[0];
     float *ch1 = g_hop_msg->hops->array[1];
     // Max physically-possible lag: spacing * fS / c
-    int maxPossibleLag = (int)(g_micSpacing * 16000.0f / 343.0f) + 1;
+    int maxPossibleLag = (int)(g_micSpacing * 48000.0f / 343.0f) + 1;
     if (maxPossibleLag < 1) maxPossibleLag = 1;
-    if (maxPossibleLag > 4) maxPossibleLag = 4;
     int kMaxLag = maxPossibleLag;
     float corrVals[2 * kMaxLag + 1];
     int bestLag = 0;
@@ -210,16 +209,32 @@ Java_com_example_myapplication_OdasEngine_processAudio(JNIEnv *env, jobject thiz
 
     float directAz = 0.0f;
     float directE = 0.0f;
+    static float g_smoothedLag = 0.0f;
+    static float g_lastAzimuth = 0.0f;
+    static float g_lastEnergy = 0.0f;
+    static int g_holdCount = 0;
+    static const float kAlpha = 0.15f;
+    static const int kHoldFrames = 20;
     if (peakQuality > 0.3f) {
-        float tdoa = peakLag / 16000.0f;
+        g_smoothedLag = kAlpha * peakLag + (1.0f - kAlpha) * g_smoothedLag;
+        g_holdCount = 0;
+        float tdoa = g_smoothedLag / 48000.0f;
         float xDirect = tdoa * 343.0f / g_micSpacing;
         if (xDirect > 1.0f) xDirect = 1.0f;
         if (xDirect < -1.0f) xDirect = -1.0f;
         directAz = asinf(xDirect) * 180.0f / M_PI;
         directE = peakQuality;
+        g_lastAzimuth = directAz;
+        g_lastEnergy = directE;
     } else {
-        directAz = 0.0f;
-        directE = 0.0f;
+        if (g_holdCount < kHoldFrames) {
+            directAz = g_lastAzimuth;
+            directE = g_lastEnergy * (1.0f - (float)g_holdCount / (float)kHoldFrames);
+            g_holdCount++;
+        }
+        if (g_holdCount >= kHoldFrames) {
+            g_smoothedLag = 0.0f;
+        }
     }
 
     // Periodic debug log (very sparse)
@@ -229,7 +244,7 @@ Java_com_example_myapplication_OdasEngine_processAudio(JNIEnv *env, jobject thiz
              bestLag, peakLag, directAz, peakQuality, g_micSpacing * 100.0f);
     }
 
-    jfloat result[6];
+    jfloat result[2];
     for (unsigned int i = 0; i < g_nPots; i++) {
         float x = g_pot_msg->pots->array[i * 4 + 0];
         float energy = g_pot_msg->pots->array[i * 4 + 3];
