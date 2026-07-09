@@ -170,7 +170,6 @@ target_link_libraries(odas_core
 )
 
 add_library(${CMAKE_PROJECT_NAME} SHARED
-    odas_wrapper.cpp
     odas_processor.cpp
 )
 
