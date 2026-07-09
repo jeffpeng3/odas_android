@@ -19,6 +19,8 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import android.widget.AdapterView
+import android.widget.ArrayAdapter
 import kotlinx.coroutines.withContext
 
 class MainActivity : AppCompatActivity() {
@@ -35,6 +37,15 @@ class MainActivity : AppCompatActivity() {
         const val MIC_SPACING = 0.14f
         const val SOUND_SPEED = 343f
     }
+
+    private data class SourceOption(val label: String, val source: Int)
+
+    private val sourceOptions = listOf(
+        SourceOption("CAMCORDER", MediaRecorder.AudioSource.CAMCORDER),
+        SourceOption("UNPROCESSED", MediaRecorder.AudioSource.UNPROCESSED),
+    )
+
+    private var currentSourceType = MediaRecorder.AudioSource.CAMCORDER
 
     private val requestPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
@@ -96,6 +107,20 @@ class MainActivity : AppCompatActivity() {
         binding.tvMicInfo.text = buildMicInfo()
         binding.radarView.updateSources(listOf(SoundSource(0f, 0f, 0f, 0L)))
 
+        val adapter = ArrayAdapter(this, android.R.layout.simple_spinner_item,
+            sourceOptions.map { it.label })
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
+        binding.sourceSpinner.adapter = adapter
+        binding.sourceSpinner.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
+            override fun onItemSelected(parent: AdapterView<*>?, view: android.view.View?, pos: Int, id: Long) {
+                val newSource = sourceOptions[pos].source
+                if (newSource != currentSourceType) {
+                    restartCapture(newSource)
+                }
+            }
+            override fun onNothingSelected(parent: AdapterView<*>?) {}
+        }
+
         when {
             ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO)
                 == PackageManager.PERMISSION_GRANTED -> {
@@ -138,6 +163,26 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun startCapture() {
+        startCapture(currentSourceType)
+    }
+
+    private fun stopCapture() {
+        processJob?.cancel()
+        processJob = null
+        audioRecord?.let {
+            if (it.recordingState == AudioRecord.RECORDSTATE_RECORDING) it.stop()
+            it.release()
+        }
+        audioRecord = null
+    }
+
+    private fun restartCapture(sourceType: Int) {
+        currentSourceType = sourceType
+        stopCapture()
+        startCapture(sourceType)
+    }
+
+    private fun startCapture(sourceType: Int) {
         val ok = odasEngine.initSSL(MIC_SPACING)
         if (!ok) { Log.e("ODAS_DEMO", "SSL init failed"); return }
         Log.i("ODAS_DEMO", "SSL initialized, spacing=${MIC_SPACING}m")
@@ -147,14 +192,13 @@ class MainActivity : AppCompatActivity() {
         var captureChannels = 2
         captureRate = SAMPLE_RATE
 
-        // attempt 1: CAMCORDER at 48000 Hz (back-mic native rate)
-        ar = tryCreateAR(MediaRecorder.AudioSource.CAMCORDER, 48000, AudioFormat.CHANNEL_IN_STEREO)
-        if (ar != null) { deviceLabel = "CAMCORDER @48kHz"; captureRate = 48000 }
+        ar = tryCreateAR(sourceType, 48000, AudioFormat.CHANNEL_IN_STEREO)
+        if (ar != null) { captureRate = 48000 }
         else {
-            // attempt 2: CAMCORDER at 16000 Hz
-            ar = tryCreateAR(MediaRecorder.AudioSource.CAMCORDER, SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO)
-            if (ar != null) deviceLabel = "CAMCORDER @16kHz"
+            ar = tryCreateAR(sourceType, SAMPLE_RATE, AudioFormat.CHANNEL_IN_STEREO)
         }
+        val gain = if (sourceType == MediaRecorder.AudioSource.UNPROCESSED) 10.0f else 1.0f
+        deviceLabel = "${sourceOptions.find { it.source == sourceType }?.label ?: "?"} @${captureRate / 1000}kHz${if (gain > 1f) " (${gain}x)" else ""}"
 
         if (ar == null) {
             Log.w("ODAS_DEMO", "stereo failed, trying MONO")
@@ -165,7 +209,7 @@ class MainActivity : AppCompatActivity() {
         audioRecord = ar
         captureChannels = ar.channelCount
         val actualRate = ar.sampleRate
-        Log.i("ODAS_DEMO", "AudioRecord OK: source=CAMCORDER rate=$actualRate ch=$captureChannels")
+        Log.i("ODAS_DEMO", "AudioRecord OK: source=$deviceLabel rate=$actualRate ch=$captureChannels")
 
         binding.tvMicInfo.text = buildMicInfo() +
             "\n=== Live Capture ===" +
@@ -194,7 +238,7 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 val read = ar.read(shortBuf, 0, readLen, AudioRecord.READ_BLOCKING)
                 if (read == readLen) {
-                    for (i in 0 until odasHop * captureChannels) floatBuf[i] = shortBuf[i].toFloat() / 32768f
+                    for (i in 0 until odasHop * captureChannels) floatBuf[i] = shortBuf[i].toFloat() / 32768f * gain
 
                     rms0 = 0f; rms1 = 0f
                     for (i in 0 until odasHop) {
@@ -270,9 +314,9 @@ class MainActivity : AppCompatActivity() {
             while (isActive) {
                 val read = ar.read(shortBuf, 0, shortBuf.size, AudioRecord.READ_BLOCKING)
                 if (read == shortBuf.size) {
-                    // Duplicate mono to both channels for ODAS 2-ch input
+                    val gain = if (currentSourceType == MediaRecorder.AudioSource.UNPROCESSED) 10.0f else 1.0f
                     for (i in 0 until HOP_SIZE) {
-                        val f = shortBuf[i].toFloat() / 32768f
+                        val f = shortBuf[i].toFloat() / 32768f * gain
                         floatBuf[i * 2] = f
                         floatBuf[i * 2 + 1] = f
                     }
@@ -291,11 +335,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
-        processJob?.cancel()
-        audioRecord?.let {
-            if (it.recordingState == AudioRecord.RECORDSTATE_RECORDING) it.stop()
-            it.release()
-        }
+        stopCapture()
         odasEngine.destroySSL()
         super.onDestroy()
     }

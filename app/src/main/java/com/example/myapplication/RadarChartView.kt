@@ -89,7 +89,7 @@ class RadarChartView @JvmOverloads constructor(
         super.onSizeChanged(w, h, oldw, oldh)
         cx = w / 2f
         val size = minOf(w, (h * 0.85f).toInt())
-        cy = h * 0.80f
+        cy = h * 0.20f
         radius = size * 0.38f
         labelPaint.textSize = radius * 0.08f
         sourceLabelPaint.textSize = radius * 0.095f
@@ -112,7 +112,7 @@ class RadarChartView @JvmOverloads constructor(
 
     private fun drawSectorBg(canvas: Canvas) {
         arcRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
-        canvas.drawArc(arcRect, 210f, 120f, true, sectorBgPaint)
+        canvas.drawArc(arcRect, 30f, 120f, true, sectorBgPaint)
     }
 
     private fun drawGrid(canvas: Canvas) {
@@ -120,37 +120,37 @@ class RadarChartView @JvmOverloads constructor(
         for (level in levels) {
             val r = radius * level
             arcRect.set(cx - r, cy - r, cx + r, cy + r)
-            canvas.drawArc(arcRect, 210f, 120f, false, gridPaint)
+            canvas.drawArc(arcRect, 30f, 120f, false, gridPaint)
         }
 
         for (az in -60..60 step 15) {
             val rad = Math.toRadians(az.toDouble())
             val ex = cx + radius * sin(rad).toFloat()
-            val ey = cy - radius * cos(rad).toFloat()
+            val ey = cy + radius * cos(rad).toFloat()
             canvas.drawLine(cx, cy, ex, ey, gridPaint)
 
             val lr = radius * 1.10f
             val lx = cx + lr * sin(rad).toFloat()
-            val ly = cy - lr * cos(rad).toFloat()
+            val ly = cy + lr * cos(rad).toFloat()
             canvas.drawText("${az}°", lx, ly, labelPaint)
         }
 
         arcRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
-        canvas.drawArc(arcRect, 210f, 120f, false, borderPaint)
+        canvas.drawArc(arcRect, 30f, 120f, false, borderPaint)
     }
 
     private fun drawForwardMarker(canvas: Canvas) {
-        val tipY = cy - radius - radius * 0.12f
-        canvas.drawLine(cx, cy - radius, cx, tipY, arrowPaint)
+        val tipY = cy + radius + radius * 0.12f
+        canvas.drawLine(cx, cy + radius, cx, tipY, arrowPaint)
         arrowPath.reset()
-        arrowPath.moveTo(cx, tipY - 12f)
-        arrowPath.lineTo(cx - 10f, tipY + 4f)
-        arrowPath.lineTo(cx + 10f, tipY + 4f)
+        arrowPath.moveTo(cx, tipY + 12f)
+        arrowPath.lineTo(cx - 10f, tipY - 4f)
+        arrowPath.lineTo(cx + 10f, tipY - 4f)
         arrowPath.close()
         canvas.drawPath(arrowPath, arrowFillPaint)
 
         labelPaint.color = 0xCCFFFFFF.toInt()
-        canvas.drawText("0°", cx, tipY - 16f, labelPaint)
+        canvas.drawText("0°", cx, tipY + 26f, labelPaint)
     }
 
     private fun drawSources(canvas: Canvas) {
@@ -160,23 +160,14 @@ class RadarChartView @JvmOverloads constructor(
 
             val rad = Math.toRadians(src.azimuthDeg.toDouble())
             val sx = cx + radius * sin(rad).toFloat()
-            val sy = cy - radius * cos(rad).toFloat()
+            val sy = cy + radius * cos(rad).toFloat()
 
             // sector glow
             val glowHalf = 5f
             val ga = (alpha * 0.35f).toInt()
             glowFillPaint.color = Color.argb(ga, Color.red(color), Color.green(color), Color.blue(color))
             arcRect.set(cx - radius, cy - radius, cx + radius, cy + radius)
-            canvas.drawArc(arcRect, 270f + src.azimuthDeg - glowHalf, glowHalf * 2f, true, glowFillPaint)
-
-            // stroke glow on outer arc
-            val sw = radius * 0.12f
-            glowStrokePaint.strokeWidth = sw
-            val gsa = (alpha * 0.25f).toInt()
-            glowStrokePaint.color = Color.argb(gsa, Color.red(color), Color.green(color), Color.blue(color))
-            val sr = radius - sw / 2f
-            arcRect.set(cx - sr, cy - sr, cx + sr, cy + sr)
-            canvas.drawArc(arcRect, 270f + src.azimuthDeg - glowHalf * 2f, glowHalf * 4f, false, glowStrokePaint)
+            canvas.drawArc(arcRect, 90f - src.azimuthDeg - glowHalf, glowHalf * 2f, true, glowFillPaint)
 
             // dot
             val dotR = 5f + 12f * src.activity

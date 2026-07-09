@@ -18,6 +18,18 @@
         android:typeface="monospace"
         android:scrollbars="vertical"
         app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintBottom_toTopOf="@id/sourceSpinner"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Spinner
+        android:id="@+id/sourceSpinner"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:backgroundTint="#80FFFFFF"
+        android:popupBackground="#16213E"
+        android:textColor="#CCFFFFFF"
+        app:layout_constraintTop_toBottomOf="@id/tvMicInfo"
         app:layout_constraintBottom_toTopOf="@id/liveRmsPanel"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
@@ -33,7 +45,7 @@
         app:layout_constraintBottom_toTopOf="@id/radarView"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/tvMicInfo">
+        app:layout_constraintTop_toBottomOf="@id/sourceSpinner">
 
         <LinearLayout
             android:id="@+id/panelCh0"
